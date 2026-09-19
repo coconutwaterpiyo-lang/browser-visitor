@@ -1,0 +1,62 @@
+name: Browser Visit
+
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: 'URL to visit'
+        required: true
+        type: string
+
+jobs:
+  visit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    
+    steps:
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install Playwright
+        run: |
+          pip install playwright
+          playwright install chromium
+          playwright install-deps chromium
+      
+      - name: Visit URL
+        run: |
+          cat > visit.py << 'EOF'
+          import asyncio
+          import random
+          import os
+          from playwright.async_api import async_playwright
+          
+          async def main():
+              url = os.environ.get("TARGET_URL")
+              print(f"Visiting: {url}")
+              
+              async with async_playwright() as p:
+                  browser = await p.chromium.launch(headless=True)
+                  context = await browser.new_context(
+                      user_agent="Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
+                      viewport={"width": 412, "height": 915},
+                      locale="en-IN",
+                  )
+                  page = await context.new_page()
+                  try:
+                      await page.goto(url, wait_until="domcontentloaded", timeout=30000)
+                      await asyncio.sleep(random.uniform(5, 10))
+                      final_url = page.url
+                      print(f"Final URL: {final_url}")
+                  except Exception as e:
+                      print(f"Error: {e}")
+                  finally:
+                      await browser.close()
+          
+          asyncio.run(main())
+          EOF
+          python visit.py
+        env:
+          TARGET_URL: ${{ inputs.url }}
